@@ -7,4 +7,5 @@ Work in progress
 + Add usage details to README
 + Create a python requirements file
 + Refactor anything else needed
++ Add W&B support
 + ...

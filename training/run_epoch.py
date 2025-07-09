@@ -1,7 +1,8 @@
-import torch
-from tqdm import tqdm
 from typing import Callable
-from argparse import Namespace
+
+import torch
+import wandb
+from tqdm import tqdm
 
 
 def run_epoch(dl: torch.utils.data.DataLoader, model: torch.nn.Module, is_train: bool, device: torch.device,
@@ -24,7 +25,7 @@ def run_epoch(dl: torch.utils.data.DataLoader, model: torch.nn.Module, is_train:
         optimizer: Optimizer to use (must be provided for training mode, doesn't matter for validation)
 
     Returns:
-        Loss over one epoch of examples
+        Loss over one epoch of examples.
     """
     model.student_model.train(mode=is_train)
 
@@ -56,6 +57,9 @@ def run_epoch(dl: torch.utils.data.DataLoader, model: torch.nn.Module, is_train:
 
             # Step optimizer and reset gradient
             if (idx + 1) % batch_size == 0:
+                # TODO Verify this is correct
+                wandb.log({"train_loss_step": loss})
+
                 optimizer.step()
                 optimizer.zero_grad()
 

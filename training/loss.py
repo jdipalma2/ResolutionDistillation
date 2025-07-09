@@ -3,7 +3,7 @@ import torch
 
 def kd_loss(teacher_output: torch.Tensor, student_output: torch.Tensor, temperature: float) -> torch.Tensor:
     """
-    Compute the KL-Divergence loss between teacher and student output features
+    Compute the KL-Divergence loss between teacher and student output features.
 
     Args:
         teacher_output: Teacher model output features
@@ -11,7 +11,7 @@ def kd_loss(teacher_output: torch.Tensor, student_output: torch.Tensor, temperat
         temperature: Temperature value for controlling softness of loss
 
     Returns:
-        KL-Divergence loss for teacher and student output features
+        KL-Divergence loss for teacher and student output features.
     """
     prob_student = torch.nn.LogSoftmax(dim=1)(student_output / temperature)
     prob_teacher = torch.nn.Softmax(dim=1)(teacher_output / temperature)

@@ -3,6 +3,7 @@ import pickle
 
 import pandas as pd
 import torch
+import wandb
 from tqdm import tqdm
 
 from config import params
@@ -19,6 +20,7 @@ def main(args):
     # Select the loss function.
     loss_func = torch.nn.L1Loss() if args.loss_type == "l1" else torch.nn.MSELoss()
     # Number of classes changes per dataset.
+    # TODO Add support for 3 datasets (CD, RCC, and LUAD)
     num_classes = 5 if args.dataset == "luad" else 3
     # Find per-channel mean and standard deviation
     with open(f"{args.dataset}_image_stats.pickle", "rb") as f:
@@ -51,10 +53,14 @@ def main(args):
                                     weight_decay=args.weight_decay)
     scheduler = torch.nn.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=args.gamma)
 
-    train_loss = []
-    val_loss = []
-
-    # TODO Write code to save hyper-parameters to log file
+    # Set up logging
+    wandb.login()
+    run = wandb.init(project="ResolutionDistillation", name=now,
+                     config={"num_classes": num_classes,
+                             "mean": mean,
+                             "std": std,
+                             # TODO Add remaining arguments from argparse
+                             })
 
     for epoch in tqdm(range(args.num_epochs)):
         print(10 * "#" + 5 * " " + f"Running epoch {epoch}" + 5 * " " + 10 * "#" + "\n\n")
@@ -65,19 +71,20 @@ def main(args):
 
         # Training
         model.student_model.train()
-        train_loss.append(
-            run_epoch(dl=train_dl, model=model, optimizer=optimizer, is_train=True, device=device, soft_loss=kd_loss,
+        tl = run_epoch(dl=train_dl, model=model, optimizer=optimizer, is_train=True, device=device, soft_loss=kd_loss,
                       pixel_loss=pixel_loss, loss_func=loss_func, temperature=args.temperature,
-                      batch_size=args.batch_size, resize_mode=args.resize_mode))
+                      batch_size=args.batch_size, resize_mode=args.resize_mode)
+        wandb.log({"epoch": epoch, "loss_train": tl})
 
         # Validation
         model.student_model.eval()
         with torch.no_grad():
-            val_loss.append(run_epoch(dl=val_dl, model=model, is_train=False, device=device, soft_loss=kd_loss,
+            vl= run_epoch(dl=val_dl, model=model, is_train=False, device=device, soft_loss=kd_loss,
                                       pixel_loss=pixel_loss, loss_func=loss_func, temperature=args.temperature,
-                                      batch_size=args.batch_size, resize_mode=args.resize_mode))
+                                      batch_size=args.batch_size, resize_mode=args.resize_mode)
+            wandb.log({"epoch": epoch, "loss_val": vl})
 
-        print(f"Training loss:\t{train_loss[-1]:.4f}\t\tValidation loss:\t{val_loss[-1]:.4f}\n")
+        print(f"Training loss:\t{tl:.4f}\t\tValidation loss:\t{vl:.4f}\n")
 
         scheduler.step()
 
@@ -89,13 +96,6 @@ def main(args):
                     "teacher_model_state_dict": model.teacher_model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(), "scheduler_state_dict": scheduler.state_dict()},
                    f=args.checkpoint_dir.joinpath(f"epoch_{epoch}.pt"))
-
-    # Save the training metrics
-    df = pd.DataFrame()
-    df["Epoch"] = list(range(args.num_epochs))
-    df["Training Loss"] = train_loss
-    df["Validation Loss"] = val_loss
-    df.to_csv(args.log_dir.joinpath(f"log_{log_name}.csv"), index=False)
 
 
 if __name__ == "__main__":
