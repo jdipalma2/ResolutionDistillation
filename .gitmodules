@@ -1,0 +1,3 @@
+[submodule "torchvision-multi-image"]
+	path = torchvision-multi-image
+	url = https://github.com/jdipalma2/torchvision-multi-image.git

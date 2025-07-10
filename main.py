@@ -1,7 +1,6 @@
 import datetime
 import pickle
 
-import pandas as pd
 import torch
 import wandb
 from tqdm import tqdm
