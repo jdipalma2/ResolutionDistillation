@@ -5,8 +5,7 @@ from typing import List, Tuple
 import torch.utils.data.datapipes.dataframe.dataframes
 from torchvision import transforms
 
-from custom_dataloader import ImageFolderLoader
-
+from tvmi.dataloader import ImageFolderLoader
 
 def create_transforms(args: Namespace, mean: List[float], std: List[float]) -> Tuple[
     transforms.Compose, transforms.Compose]:
