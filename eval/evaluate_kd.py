@@ -6,12 +6,12 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torchvision.datasets as datasets
-import torchvision.transforms as transforms
 from PIL import Image
 from tqdm import tqdm
 
 from model.resnet_with_groupnorm import ResNet
 from utils import calculate_confusion_matrix, compute_auc_multi, save_confusion_matrix, save_roc_curve_multi
+from tvmi import transforms
 
 Image.MAX_IMAGE_PIXELS = None
 

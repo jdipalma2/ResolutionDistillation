@@ -1,11 +1,11 @@
 # ResolutionDistillation
-Work in progress
+Official code for the paper [Resolution-based distillation for efficient histology image classification](https://doi.org/10.1016/j.artmed.2021.102136) appearing in the Elsevier Journal of Artificial Intelligence in Medicine. 
 
 # To-do
-+ Separate custom torchvision files into their own repo and import that package here
 + Add documentation to remaining files
 + Add usage details to README
-+ Create a python requirements file
++ Add versions to requirements.txt
 + Refactor anything else needed
 + Add W&B support
++ Re-write evaluation code
 + ...
