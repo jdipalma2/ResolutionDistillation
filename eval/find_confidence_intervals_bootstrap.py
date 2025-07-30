@@ -8,6 +8,7 @@ import torch
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from tqdm import tqdm
+import pandas as pd
 
 from model.resnet_with_groupnorm import ResNet
 from utils import compute_ci
@@ -46,7 +47,6 @@ with torch.no_grad():
 
     transform = transforms.Compose(transforms=[transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
 
-    class_counts = [0 for __ in range(len(class_names))]
     ds = datasets.ImageFolder(root=args.data_dir, transform=transform)
     dl = torch.utils.data.DataLoader(dataset=ds, batch_size=1, shuffle=False, num_workers=args.num_workers, pin_memory=True)
     y_true = torch.empty(size=(len(ds), ), dtype=torch.long).cpu()

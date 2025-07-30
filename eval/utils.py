@@ -76,7 +76,7 @@ def compute_auc_multi(labels: List[List[int]], preds: List[List[float]]) -> List
     return roc_aucs
 
 
-def calculate_confusion_matrix(all_labels: torch.Tensor, all_predicts: torch.Tensor,
+def calculate_confusion_matrix(all_labels: np.ndarray, all_predicts: np.ndarray,
                                classes: Tuple[str, ...]) -> pd.DataFrame:
     """
     Compute the confusion matrix for the provided ground-truth labels and predictions and print.
@@ -319,3 +319,26 @@ def convert_labels_to_onehot_vectors(label_list, num_class):
 
     """
     return [[1 if i == e else 0 for i in range(num_class)] for e in label_list]
+
+
+def compute_metrics(model, dataloader, num_classes, class_names, auc_dest, cm_dest):
+    all_labels, all_predicts = find_results(model=model, dataloader=dataloader, num_classes=num_classes)
+
+    loss = torch.nn.CrossEntropyLoss()(input=all_predicts, target=all_labels).item()
+    # TODO Check if boolean casts to float properly
+    acc = torch.mean((torch.max(all_predicts, dim=1)[1] == all_labels).float()).item()
+
+    # Save the ROC curves.
+    __ = save_roc_curve_multi(obs_lists=torch.nn.functional.one_hot(all_labels).tolist(),
+                              pred_lists=all_predicts.tolist(), figdest=auc_dest, class_names=class_names,
+                              show_micro_avg=True, show_macro_avg=True)
+
+    # Compute the AUCs.
+    auc = compute_auc_multi(labels=torch.nn.functional.one_hot(all_labels).tolist(), preds=all_predicts.tolist())
+
+    # Save the confusion matrices.
+    cm = calculate_confusion_matrix(all_labels=all_labels.numpy(),
+                                    all_predicts=torch.max(all_predicts, dim=1)[1].numpy(), classes=class_names)
+    save_confusion_matrix(cm=cm, class_names=class_names, output_name=cm_dest)
+
+    return loss, acc, auc

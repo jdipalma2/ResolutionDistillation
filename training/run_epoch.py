@@ -33,7 +33,6 @@ def run_epoch(dl: torch.utils.data.DataLoader, model: torch.nn.Module, is_train:
 
     # Reset the gradient
     if is_train:
-        assert optimizer is not None, "Optimizer must exist for training mode"
         optimizer.zero_grad()
 
     for idx, (student_batch, teacher_batch) in enumerate(tqdm(dl, desc="Training" if is_train else "Validation")):

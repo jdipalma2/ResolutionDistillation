@@ -8,9 +8,11 @@ import torch.nn as nn
 import torchvision.datasets as datasets
 from PIL import Image
 from tqdm import tqdm
+import pandas as pd
 
 from model.resnet_with_groupnorm import ResNet
-from utils import calculate_confusion_matrix, compute_auc_multi, save_confusion_matrix, save_roc_curve_multi
+from utils import calculate_confusion_matrix, compute_auc_multi, compute_metrics, find_results, save_confusion_matrix, \
+    save_roc_curve_multi
 from tvmi import transforms
 
 Image.MAX_IMAGE_PIXELS = None
@@ -95,18 +97,12 @@ print(f"Number of validation images:\t{len(dataset['val'])}")
 print(f"Number of test images:\t{len(dataset['test'])}")
 print("\n#####################################\n\n")
 
-
-def find_results(model, dataloader, num_classes):
-    with torch.no_grad():
-        all_labels = torch.empty(size=(len(dataloader),), dtype=torch.long).cpu()
-        all_predicts = torch.empty(size=(len(dataloader), num_classes), dtype=torch.float).cpu()
-
-        for idx, (image, label) in enumerate(dataloader):
-            all_labels[idx] = label.detach().cpu()
-            all_predicts[idx] = model(image.cuda(non_blocking=True))[-1].detach().cpu()
-
-    return all_labels, all_predicts
-
+train_acc_run = []
+val_acc_run = []
+test_acc_run = []
+train_loss_run = []
+val_loss_run = []
+test_loss_run = []
 
 with log_csv.open(mode="w") as writer:
     writer.write(
@@ -117,57 +113,28 @@ with log_csv.open(mode="w") as writer:
             torch.load(f=args.checkpoint_dir.joinpath(f"epoch_{epoch}.pt"))["student_model_state_dict"], strict=True)
         model.train(mode=False)
 
-        train_all_labels, train_all_predicts = find_results(model=model, dataloader=loader["train"])
-        val_all_labels, val_all_predicts = find_results(model=model, dataloader=loader["val"])
-        test_all_labels, test_all_predicts = find_results(model=model, dataloader=loader["test"])
+        train_loss, train_acc, train_auc = compute_metrics(model=model, dataloader=loader["train"],
+                                                           num_classes=len(class_names), auc_dest=str(
+                args.roc_dir.joinpath(log_name).joinpath(f"train_epoch_{epoch}.png")),
+                cm_dest=args.cm_dir.joinpath(log_name).joinpath(f"train_epoch_{epoch}.png"), class_names=class_names)
 
-        train_loss = nn.CrossEntropyLoss()(input=train_all_predicts, target=train_all_labels).item()
-        train_accuracy = torch.mean(
-            (torch.max(train_all_predicts, dim=1)[1] == train_all_labels).to(torch.float32)).item()
-        val_loss = nn.CrossEntropyLoss()(input=val_all_predicts, target=val_all_labels).item()
-        val_accuracy = torch.mean((torch.max(val_all_predicts, dim=1)[1] == val_all_labels).to(torch.float32)).item()
-        test_loss = nn.CrossEntropyLoss()(input=test_all_predicts, target=test_all_labels).item()
-        test_accuracy = torch.mean((torch.max(test_all_predicts, dim=1)[1] == test_all_labels).to(torch.float32)).item()
+        val_loss, val_acc, val_auc = compute_metrics(model=model, dataloader=loader["val"],
+                                                           num_classes=len(class_names), auc_dest=str(
+                args.roc_dir.joinpath(log_name).joinpath(f"val_epoch_{epoch}.png")),
+                cm_dest=args.cm_dir.joinpath(log_name).joinpath(f"val_epoch_{epoch}.png"), class_names=class_names)
 
-        train_cm = calculate_confusion_matrix(all_labels=train_all_labels.numpy(),
-                                              all_predicts=torch.max(train_all_predicts, dim=1)[1].numpy(),
-                                              classes=class_names)
-        val_cm = calculate_confusion_matrix(all_labels=val_all_labels.numpy(),
-                                            all_predicts=torch.max(val_all_predicts, dim=1)[1].numpy(),
-                                            classes=class_names)
-        test_cm = calculate_confusion_matrix(all_labels=test_all_labels.numpy(),
-                                             all_predicts=torch.max(test_all_predicts, dim=1)[1].numpy(),
-                                             classes=class_names)
+        test_loss, test_acc, test_auc = compute_metrics(model=model, dataloader=loader["test"],
+                                                           num_classes=len(class_names), auc_dest=str(
+                args.roc_dir.joinpath(log_name).joinpath(f"test_epoch_{epoch}.png")),
+                cm_dest=args.cm_dir.joinpath(log_name).joinpath(f"test_epoch_{epoch}.png"), class_names=class_names)
 
-        # Save the ROC curves.
-        __ = save_roc_curve_multi(obs_lists=torch.nn.functional.one_hot(train_all_labels).tolist(),
-                                  pred_lists=train_all_predicts.tolist(),
-                                  figdest=str(args.roc_dir.joinpath(log_name).joinpath(f"train_epoch_{epoch}.png")),
-                                  class_names=class_names, show_micro_avg=True, show_macro_avg=True)
-        __ = save_roc_curve_multi(obs_lists=torch.nn.functional.one_hot(val_all_labels).tolist(),
-                                  pred_lists=val_all_predicts.tolist(),
-                                  figdest=str(args.roc_dir.joinpath(log_name).joinpath(f"val_epoch_{epoch}.png")),
-                                  class_names=class_names, show_micro_avg=True, show_macro_avg=True)
-        __ = save_roc_curve_multi(obs_lists=torch.nn.functional.one_hot(test_all_labels).tolist(),
-                                  pred_lists=test_all_predicts.tolist(),
-                                  figdest=str(args.roc_dir.joinpath(log_name).joinpath(f"test_epoch_{epoch}.png")),
-                                  class_names=class_names, show_micro_avg=True, show_macro_avg=True)
+        train_loss_run.append(train_loss)
+        val_loss_run.append(val_loss)
+        test_loss_run.append(test_loss)
 
-        # Compute the AUCs.
-        train_auc = compute_auc_multi(labels=torch.nn.functional.one_hot(train_all_labels).tolist(),
-                                      preds=train_all_predicts.tolist())
-        val_auc = compute_auc_multi(labels=torch.nn.functional.one_hot(val_all_labels).tolist(),
-                                    preds=val_all_predicts.tolist())
-        test_auc = compute_auc_multi(labels=torch.nn.functional.one_hot(test_all_labels).tolist(),
-                                     preds=test_all_predicts.tolist())
-
-        # Save the confusion matrices.
-        save_confusion_matrix(cm=train_cm, class_names=class_names,
-                              output_name=args.cm_dir.joinpath(log_name).joinpath(f"train_epoch_{epoch}.png"))
-        save_confusion_matrix(cm=val_cm, class_names=class_names,
-                              output_name=args.cm_dir.joinpath(log_name).joinpath(f"val_epoch_{epoch}.png"))
-        save_confusion_matrix(cm=test_cm, class_names=class_names,
-                              output_name=args.cm_dir.joinpath(log_name).joinpath(f"test_epoch_{epoch}.png"))
+        train_acc_run.append(train_acc)
+        val_acc_run.append(val_acc)
+        test_acc_run.append(test_acc)
 
         writer.write(f"{epoch},"
                      f"{train_loss},"

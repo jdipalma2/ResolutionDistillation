@@ -8,7 +8,8 @@ from resnet_with_groupnorm import ResNet
 
 class KD(torch.nn.Module):
     def __init__(self, num_classes: int, teacher_saved_model: Path, resnet_planes: Tuple[int] = (32, 64, 128, 256),
-                 resnet_layers: Tuple[int] = (1, 1, 1, 1), teacher_model_state_dict_key: str = "model_state_dict"):
+                 resnet_layers: Tuple[int] = (1, 1, 1, 1),
+                 teacher_model_state_dict_key: str = "model_state_dict") -> None:
         """
         Create the knowledge distillation model.
 
